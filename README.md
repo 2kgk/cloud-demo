@@ -5,6 +5,8 @@
 
 ## 服务说明
 
+### 服务注册与发现 (Service Discovery)
+
 ### 产品服务 (Product Service)
 - 端口：7080
 - 功能：提供产品查询接口
