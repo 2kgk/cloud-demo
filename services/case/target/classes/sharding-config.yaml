@@ -1,0 +1,59 @@
+# 数据源定义
+dataSources:
+  ds0:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    jdbcUrl: jdbc:mysql://localhost:3306/testmaven?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+
+# 分片规则
+rules:
+  - !SINGLE
+    tables:
+      - ds0.*
+  - !SHARDING
+    tables:
+      # 配置逻辑表 case
+      test_case:
+        # 物理节点：ds0库下的case_0到case_31（32张表）
+        actualDataNodes: ds0.test_case_${0..31}
+        # 表分片策略（核心）
+        tableStrategy:
+          standard:
+            shardingColumn: project_id
+            shardingAlgorithmName: case_table_mod
+        keyGenerateStrategy:
+          column: id
+          keyGeneratorName: custom
+    # 【修复2】分片算法定义必须与 tables 同级
+    shardingAlgorithms:
+      case_table_mod:
+          type: CLASS_BASED
+          props:
+            strategy: STANDARD
+            algorithmClassName: com.example.testcase.config.ConsistentHashShardingAlgorithm
+      # 取模算法：根据 projectId % 32 路由到表
+#      case_table_mod:
+#        type: INLINE
+#        props:
+#          algorithm-expression: test_case_${project_id % 32}
+
+
+    # 【修复3】keyGenerators 必须与 shardingAlgorithms 同级
+    keyGenerators:
+#      snowflake:
+#        type: SNOWFLAKE
+#        props:
+#          # 可选：雪花算法参数配置
+#          worker-id: 123
+#          max-vibration-offset: 3
+      custom:
+        type: CUSTOM
+# 全局属性
+props:
+  sql-show: true
+  check-table-metadata-enabled: false
+  sql-comment-parse-enabled: true
+  sql-show-simple: false
+  show-process-list-enabled: true

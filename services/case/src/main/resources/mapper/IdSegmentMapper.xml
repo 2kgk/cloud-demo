@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.testcase.mapper.IdSegmentMapper">
+
+    <!-- 更新号段（乐观锁） -->
+    <update id="updateSegment">
+        UPDATE id_segment
+        SET max_id = #{newMaxId},
+            version = version + 1,
+            updated_time = NOW()
+        WHERE biz_type = #{bizType}
+          AND max_id = #{oldMaxId}
+          AND version = #{version}
+    </update>
+
+</mapper>

@@ -1,0 +1,26 @@
+-- 模型批次进度表
+CREATE TABLE `model_batch_progress` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `task_id` varchar(100) NOT NULL COMMENT '任务ID',
+  `model_id` bigint(20) DEFAULT NULL COMMENT '模型ID',
+  `suite_id` bigint(20) DEFAULT NULL COMMENT '测试集ID',
+  `total_batch_count` int(11) NOT NULL COMMENT '总批次数',
+  `current_batch_index` int(11) NOT NULL DEFAULT '0' COMMENT '当前批次索引',
+  `processed_batch_count` int(11) NOT NULL DEFAULT '0' COMMENT '已处理批次数',
+  `processed_batch_indexes` text COMMENT '已处理的批次索引列表，逗号分隔，如"0,1,2,3"',
+  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态(1-进行中,2-已完成)',
+  `message` varchar(500) DEFAULT NULL COMMENT '消息说明',
+  `start_time` datetime DEFAULT NULL COMMENT '开始时间',
+  `end_time` datetime DEFAULT NULL COMMENT '结束时间',
+  `deleted` tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除标记(0-未删除,1-已删除)',
+  `created_by` varchar(100) DEFAULT NULL COMMENT '创建人',
+  `updated_by` varchar(100) DEFAULT NULL COMMENT '更新人',
+  `created_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_task_id` (`task_id`) COMMENT '任务ID唯一索引',
+  KEY `idx_task_id` (`task_id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_deleted` (`deleted`),
+  KEY `idx_created_time` (`created_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模型批次进度表';

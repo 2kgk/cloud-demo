@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- 控制台输出 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- Kafka日志Appender -->
+    <appender name="KAFKA" class="com.example.execution.logging.KafkaAppender">
+        <serviceName>execution</serviceName>
+    </appender>
+
+    <!-- 异步Kafka Appender -->
+    <appender name="ASYNC_KAFKA" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>1000</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <appender-ref ref="KAFKA" />
+    </appender>
+
+    <!-- 根日志配置 -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="ASYNC_KAFKA" />
+    </root>
+
+    <!-- 特定包的日志级别 -->
+    <logger name="com.example.execution" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="ASYNC_KAFKA" />
+    </logger>
+
+    <logger name="org.springframework.cloud.openfeign" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="ASYNC_KAFKA" />
+    </logger>
+</configuration>

@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: product
+  config:
+    import: optional:nacos:${spring.application.name}.yaml
+  cloud:
+    nacos:
+      # 1. 服务发现配置
+      discovery:
+        server-addr: 127.0.0.1:8848
+      # 2. 配置中心配置
+      config:
+        server-addr: 127.0.0.1:8848
+        file-extension: yaml
+server:
+  port: 7080

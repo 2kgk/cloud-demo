@@ -1,0 +1,75 @@
+spring:
+  application:
+    name: case
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yaml
+  cloud:
+    nacos:
+      # 1. 服务发现配置
+      discovery:
+        server-addr: 127.0.0.1:8848
+      # 2. 配置中心配置
+      config:
+        server-addr: 127.0.0.1:8848
+        file-extension: yaml
+  datasource:
+    driver-class-name: org.apache.shardingsphere.driver.ShardingSphereDriver
+    url: jdbc:shardingsphere:classpath:sharding-config.yaml
+  kafka:
+    # Kafka服务器地址
+    bootstrap-servers: 172.24.176.31:9092
+    # 消费者配置
+    consumer:
+      # 键的反序列化器
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # 值的反序列化器
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # 消费者组ID
+      group-id: case-service-group
+      # 是否自动提交偏移量（我们使用手动提交）
+      enable-auto-commit: false
+      # 自动提交时间间隔（如果enableAutoCommit=true）
+      auto-commit-interval: 1000
+      # 从最早的消息开始消费（earliest）或从最新的消息开始消费（latest）
+      auto-offset-reset: earliest
+      # 单次拉取最大数量
+      max-poll-records: 100
+      # 会话超时时间
+      session-timeout-ms: 30000
+      # 心跳间隔时间
+      heartbeat-interval-ms: 10000
+      # 最大轮询间隔时间
+      max-poll-interval-ms: 300000
+    # 监听器配置
+    listener:
+      # 消费者监听器线程数
+      concurrency: 3
+      # 优雅关闭超时时间
+      shutdown-timeout: 60000
+
+server:
+  port: 7082
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  mapper-locations: classpath:mapper/*.xml
+
+# Kafka配置
+kafka:
+  topic:
+    model-task: test-topic
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.example.testcase: DEBUG
+    org.springframework.kafka: INFO
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n'
