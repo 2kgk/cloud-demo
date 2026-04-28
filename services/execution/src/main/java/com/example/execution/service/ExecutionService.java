@@ -3,12 +3,14 @@ package com.example.execution.service;
 import com.example.execution.feign.CaseServiceFeign;
 import com.example.execution.util.CaseContext;
 import com.example.testcase.entity.TestCase;
+import com.sun.management.OperatingSystemMXBean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.lang.management.ManagementFactory;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
@@ -30,34 +32,92 @@ public class ExecutionService {
             8, // 最大线程数
             60L, // 空闲线程存活时间
             TimeUnit.SECONDS,
-            new LinkedBlockingQueue<>(100), // 任务队列
+            new LinkedBlockingQueue<>(4), // 任务队列
             new ThreadPoolExecutor.CallerRunsPolicy() // 拒绝策略
     );
     
+    // 系统资源阈值
+    private static final double CPU_USAGE_THRESHOLD = 0.8;   // CPU使用率阈值 80%
+    private static final double MEMORY_USAGE_THRESHOLD = 0.8; // 内存使用率阈值 80%
+
     /**
-     * 定时任务：每5分钟执行一次，拉取所有未删除的用例进行执行
+     * 定时任务：每1秒执行一次，执行前检查系统负载和线程池资源
      */
-    @Scheduled(fixedRate = 5 * 60 * 1000) // 5分钟执行一次
+    @Scheduled(fixedRate = 1000) // 1秒执行一次
     public void executeCasesScheduled() {
+        // 检查系统负载
+        if (!checkSystemResource()) {
+            log.warn("系统负载过高，跳过本次任务 - {}", LocalDateTime.now());
+            return;
+        }
+
+        // 检查线程池是否有空闲线程
+        if (!checkThreadPoolAvailable()) {
+            log.warn("线程池资源不足，跳过本次任务 - {}", LocalDateTime.now());
+            return;
+        }
+
         log.info("开始执行定时任务 - {}", LocalDateTime.now());
-        
+
         try {
             // 通过Feign客户端拉取所有未删除的用例
             List<TestCase> allCases = caseServiceFeign.getAllActiveCases(2);
-            
+
             log.info("通过Feign获取到 {} 个活跃用例，开始并发执行", allCases.size());
-            
+
             if (allCases.isEmpty()) {
                 log.info("没有找到活跃用例，跳过执行");
                 return;
             }
-            
+
             // 并发执行用例
             executeCasesConcurrently(allCases);
-            
+
         } catch (Exception e) {
             log.error("定时任务执行失败 - {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * 检查系统CPU和内存使用率
+     */
+    private boolean checkSystemResource() {
+        OperatingSystemMXBean osBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+        double cpuUsage = osBean.getCpuLoad();
+        double freeMemory = osBean.getFreeMemorySize();
+        double totalMemory = osBean.getTotalMemorySize();
+        double memoryUsage = 1.0 - (freeMemory / totalMemory);
+
+        log.debug("系统资源 - CPU使用率: {}, 内存使用率: {}", String.format("%.2f", cpuUsage), String.format("%.2f", memoryUsage));
+
+        if (cpuUsage > CPU_USAGE_THRESHOLD) {
+            log.warn("CPU使用率过高 - 当前: {}, 阈值: {}", String.format("%.2f", cpuUsage), CPU_USAGE_THRESHOLD);
+            return false;
+        }
+        if (memoryUsage > MEMORY_USAGE_THRESHOLD) {
+            log.warn("内存使用率过高 - 当前: {}, 阈值: {}", String.format("%.2f", memoryUsage), MEMORY_USAGE_THRESHOLD);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * 检查线程池是否有空闲资源
+     */
+    private boolean checkThreadPoolAvailable() {
+        int activeCount = executor.getActiveCount();
+        int maximumPoolSize = executor.getMaximumPoolSize();
+        int queueSize = executor.getQueue().size();
+        int queueRemaining = executor.getQueue().remainingCapacity();
+
+        log.debug("线程池状态 - 活跃线程: {}, 最大线程: {}, 队列剩余: {}", activeCount, maximumPoolSize, queueRemaining);
+
+        // 活跃线程数达到最大 或 队列已满，视为无可用资源
+        if (activeCount >= maximumPoolSize && queueRemaining <= 0) {
+            log.warn("线程池无空闲资源 - 活跃线程: {}, 队列已满: {}", activeCount, queueSize);
+            return false;
+        }
+        return true;
     }
     
     /**
@@ -113,6 +173,18 @@ public class ExecutionService {
             
             // 执行测试逻辑（使用线程睡眠一分钟代替）
             log.info("开始执行测试逻辑 - CaseId: {}, 将模拟执行1分钟", testCase.getCaseId());
+            log.info("开始执行步骤1");
+            TimeUnit.SECONDS.sleep(10);
+            log.info("步骤1执行完成");
+            log.info("开始执行步骤2");
+            TimeUnit.SECONDS.sleep(10);
+            log.info("步骤2执行完成");
+            log.info("开始执行步骤3");
+            TimeUnit.SECONDS.sleep(10);
+            log.info("步骤3执行完成");
+            log.info("开始执行步骤4");
+            TimeUnit.SECONDS.sleep(10);
+            log.info("步骤4执行完成");
             TimeUnit.SECONDS.sleep(10); // 线程睡眠一分钟，模拟执行逻辑
             
             // 在ThreadLocal中设置结束时间
@@ -155,38 +227,5 @@ public class ExecutionService {
             // 清除当前线程的上下文
             CaseContext.clear();
         }
-    }
-    
-    /**
-     * 获取线程池状态
-     */
-    public void getThreadPoolStatus() {
-        log.info("线程池状态 - 核心线程数: {}, 最大线程数: {}, 当前活跃线程数: {}, " +
-                "已完成任务数: {}, 任务队列大小: {}",
-                executor.getCorePoolSize(),
-                executor.getMaximumPoolSize(),
-                executor.getActiveCount(),
-                executor.getCompletedTaskCount(),
-                executor.getQueue().size());
-    }
-    
-    /**
-     * 关闭线程池
-     */
-    public void shutdown() {
-        log.info("开始关闭线程池");
-        executor.shutdown();
-        try {
-            // 等待任务完成，最多等待1分钟
-            if (!executor.awaitTermination(1, TimeUnit.MINUTES)) {
-                log.warn("线程池关闭超时，强制关闭");
-                executor.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            log.error("关闭线程池时发生中断", e);
-            executor.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
-        log.info("线程池已关闭");
     }
 }

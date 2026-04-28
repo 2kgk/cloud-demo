@@ -3,6 +3,7 @@ package com.example.execution.logging;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.UnsynchronizedAppenderBase;
 import com.alibaba.fastjson2.JSON;
+import lombok.Setter;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
@@ -20,8 +21,10 @@ import java.util.concurrent.*;
 public class KafkaAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
     
     private static final String LOG_TOPIC = "log-topic";
+    // 静态设置KafkaTemplate
+    @Setter
     private static KafkaTemplate<String, String> kafkaTemplate;
-    private static String serviceName = "execution";
+    private static final String serviceName = "execution";
     
     // 异步线程池
     private static final ExecutorService executorService = new ThreadPoolExecutor(
@@ -32,17 +35,7 @@ public class KafkaAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
             new LinkedBlockingQueue<>(1000),
             new ThreadPoolExecutor.CallerRunsPolicy()
     );
-    
-    // 静态设置KafkaTemplate
-    public static void setKafkaTemplate(KafkaTemplate<String, String> template) {
-        kafkaTemplate = template;
-    }
-    
-    // 设置服务名称
-    public void setServiceName(String name) {
-        serviceName = name;
-    }
-    
+
     @Override
     protected void append(ILoggingEvent event) {
         try {
@@ -98,6 +91,8 @@ public class KafkaAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
             kafkaTemplate.send(LOG_TOPIC, key, logJson).whenComplete((result, ex) -> {
                 if (ex != null) {
                     addError("Failed to send log to Kafka", ex);
+                } else {
+                    addInfo("Sent log to Kafka: " + logJson);
                 }
             });
             
