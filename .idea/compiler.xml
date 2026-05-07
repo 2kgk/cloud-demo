@@ -9,9 +9,10 @@
         <outputRelativeToContentRoot value="true" />
         <module name="execution" />
         <module name="product" />
-        <module name="model" />
         <module name="log" />
+        <module name="model" />
         <module name="case" />
+        <module name="gateway" />
         <module name="order" />
       </profile>
     </annotationProcessing>
@@ -21,6 +22,7 @@
       <module name="case" options="-parameters" />
       <module name="cloud-demo" options="" />
       <module name="execution" options="-parameters" />
+      <module name="gateway" options="-parameters" />
       <module name="log" options="-parameters" />
       <module name="model" options="-parameters" />
       <module name="order" options="-parameters" />

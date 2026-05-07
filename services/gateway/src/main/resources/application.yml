@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: gateway
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yaml
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+      config:
+        server-addr: 127.0.0.1:8848
+        file-extension: yaml
+    gateway:
+      routes:
+        - id: product-service
+          uri: lb://product
+          predicates:
+            - Path=/api/products/**
+        - id: order-service
+          uri: lb://order
+          predicates:
+            - Path=/api/orders/**
+        - id: case-service
+          uri: lb://case
+          predicates:
+            - Path=/api/cases/**,/api/sharding/**,/api/tasks/**,/api/results/**
+        - id: execution-service
+          uri: lb://execution
+          predicates:
+            - Path=/api/execution/**
+        - id: model-service
+          uri: lb://model-service
+          predicates:
+            - Path=/api/model/**
+        - id: log-service
+          uri: lb://log-service
+          predicates:
+            - Path=/api/logs/**
+
+server:
+  port: 7070
+
+# 远程认证服务地址
+auth:
+  remote:
+    base-url: http://localhost:7000
+
+# 本地 JWT 配置
+jwt:
+  secret: my-secret-key-change-in-production-32-chars-min!!!
+  expiration: 1800000           # access_token 过期时间（30分钟）
+  refresh-expiration: 604800000  # refresh_token 过期时间（7天）
+
+logging:
+  level:
+    root: INFO
+    com.example.gateway: DEBUG
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n'

@@ -19,6 +19,7 @@
         <module>model</module>
         <module>execution</module>
         <module>log</module>
+        <module>gateway</module>
     </modules>
 
     <properties>
