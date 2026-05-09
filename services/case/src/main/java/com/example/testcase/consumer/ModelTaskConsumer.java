@@ -46,7 +46,7 @@ public class ModelTaskConsumer {
             8, // 最大线程数
             60L, // 空闲线程存活时间
             TimeUnit.SECONDS,
-            new LinkedBlockingQueue<>(100), // 任务队列
+            new LinkedBlockingQueue<>(600), // 任务队列
             new ThreadPoolExecutor.CallerRunsPolicy() // 拒绝策略
     );
 
@@ -157,8 +157,9 @@ public class ModelTaskConsumer {
         Map<String, CaseInfo> caseInfoMap = modelCaseQueryService.batchQueryCasesWithCache(pathIds);
         log.info("批量查询用例信息完成 - TaskId: {}, 查询结果数量: {}", taskId, caseInfoMap.size());
 
-        // 3. 使用ThreadPoolExecutor+CompletableFuture并发生成testcase
-        List<CompletableFuture<TestCase>> futures = new ArrayList<>();
+        // 3. 使用ThreadPoolExecutor+CompletableFuture并发生成testcase（每个任务独立超时）
+        int perTaskTimeoutSeconds = 30;
+        List<CompletableFuture<TaskResult>> futures = new ArrayList<>();
 
         for (Integer pathId : pathIds) {
             final Integer currentPathId = pathId;
@@ -167,40 +168,43 @@ public class ModelTaskConsumer {
             final Long currentSuiteId = suiteId;
             final Long currentUserId = userId;
 
-            CompletableFuture<TestCase> future = CompletableFuture.supplyAsync(() -> {
-                try {
-                    return generateTestCase(currentPathId, caseInfoMap, currentTaskId, currentModelId, currentSuiteId, currentUserId);
-                } catch (Exception e) {
-                    log.error("生成测试用例失败 - TaskId: {}, PathId: {}, Error: {}", currentTaskId, currentPathId, e.getMessage(), e);
-                    return null;
-                }
-            }, executor);
-
+            CompletableFuture<TaskResult> future = CompletableFuture.supplyAsync(() ->
+                    generateTestCase(currentPathId, caseInfoMap, currentTaskId, currentModelId, currentSuiteId, currentUserId),
+                    executor
+            ).orTimeout(perTaskTimeoutSeconds, TimeUnit.SECONDS)
+             .handle((tc, throwable) -> {
+                 if (throwable == null) {
+                     return new TaskResult(tc, currentPathId, null, false);
+                 }
+                 boolean isTimeout = throwable instanceof TimeoutException;
+                 return new TaskResult(null, currentPathId, isTimeout ? "timeout" : throwable.getMessage(), isTimeout);
+             });
             futures.add(future);
         }
 
-        // 等待所有CompletableFuture完成
-        CompletableFuture<Void> allFutures = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+        // 等待所有任务完成（orTimeout保证不会永久阻塞）
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
-        try {
-            // 设置超时时间为5分钟
-            allFutures.get(5, TimeUnit.MINUTES);
-        } catch (Exception e) {
-            log.error("等待测试用例生成超时或失败 - TaskId: {}, Error: {}", taskId, e.getMessage(), e);
-        }
-
-        // 收集生成的测试用例
-        List<TestCase> testCases = futures.stream()
-                .map(future -> {
-                    try {
-                        return future.get();
-                    } catch (Exception e) {
-                        log.error("获取测试用例结果失败 - Error: {}", e.getMessage(), e);
-                        return null;
-                    }
-                })
-                .filter(Objects::nonNull)
+        // 收集结果
+        List<TaskResult> taskResults = futures.stream()
+                .map(CompletableFuture::join)
                 .collect(Collectors.toList());
+
+        // 收集成功的测试用例
+        List<TestCase> testCases = taskResults.stream()
+                .filter(TaskResult::isSuccess)
+                .map(r -> r.testCase)
+                .collect(Collectors.toList());
+
+        // 记录失败的任务
+        List<TaskResult> failedTasks = taskResults.stream()
+                .filter(r -> !r.isSuccess())
+                .collect(Collectors.toList());
+        if (!failedTasks.isEmpty()) {
+            log.warn("部分测试用例生成失败 - TaskId: {}, 失败数量: {}, 详情: {}",
+                    taskId, failedTasks.size(),
+                    failedTasks.stream().map(r -> "PathId:" + r.pathId + ", Error:" + (r.timeout ? "TIMEOUT:" : "") + r.error).collect(Collectors.joining("; ")));
+        }
 
         log.info("测试用例生成完成 - TaskId: {}, 生成数量: {}", taskId, testCases.size());
 
@@ -243,6 +247,27 @@ public class ModelTaskConsumer {
         } else {
             log.info("批次处理完成，等待其他批次 - TaskId: {}, ProcessedBatchCount: {}, TotalBatchCount: {}",
                     taskId, updatedProgress != null ? updatedProgress.getProcessedBatchCount() : 0, totalBatchCount);
+        }
+    }
+
+    /**
+     * 单个任务处理结果包装
+     */
+    static class TaskResult {
+        final TestCase testCase;
+        final Integer pathId;
+        final String error;
+        final boolean timeout;
+
+        TaskResult(TestCase testCase, Integer pathId, String error, boolean timeout) {
+            this.testCase = testCase;
+            this.pathId = pathId;
+            this.error = error;
+            this.timeout = timeout;
+        }
+
+        boolean isSuccess() {
+            return testCase != null;
         }
     }
 
